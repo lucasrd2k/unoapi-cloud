@@ -68,6 +68,8 @@ export const WEBHOOK_SESSION = process.env.WEBHOOK_SESSION || ''
 export const AMQP_URL = process.env.AMQP_URL || 'amqp://guest:guest@localhost:5672'
 export const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
 export const PROXY_URL = process.env.PROXY_URL
+export const WHATSAPP_PROVIDER = process.env.WHATSAPP_PROVIDER || 'baileys'
+export const ZAPO_REDIS_PREFIX = process.env.ZAPO_REDIS_PREFIX || 'zapo:'
 
 // behavior of unoapi
 export const UNOAPI_SERVER_NAME = process.env.UNOAPI_SERVER_NAME || 'server_1'

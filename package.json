@@ -1,6 +1,6 @@
 {
   "name": "unoapi-cloud",
-  "version": "2.11.7",
+  "version": "2.12.0",
   "description": "Unoapi Cloud",
   "exports": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,7 +12,9 @@
   "license": "GPL-3.0",
   "scripts": {
     "lint": "eslint",
+    "typecheck": "node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
     "test": "node_modules/jest/bin/jest.js --coverage",
+    "test:zapo": "node_modules/jest/bin/jest.js __tests__/services/transformer_zapo.ts __tests__/services/whatsapp_provider.ts __tests__/services/zapo_qrcode.ts --runInBand --coverage=false",
     "build": "./node_modules/typescript/bin/tsc -p .",
     "format": "prettier --ignore-path .gitignore --write \"**/*.+(js|ts|json)\"",
     "dev": "UNOAPI_MODE=simple tsx watch src/index.ts",
@@ -59,6 +61,7 @@
     "@types/uuid": "^9.0.8",
     "@types/vcf": "^2.0.7",
     "@types/ws": "^8.5.10",
+    "@zapo-js/fake-server": "1.3.0",
     "@typescript-eslint/eslint-plugin": "^7.13.0",
     "@typescript-eslint/parser": "^7.13.0",
     "eslint": "^8.56.0",
@@ -80,13 +83,18 @@
     "@google-cloud/text-to-speech": "^5.2.0",
     "@redis/client": "^1.5.14",
     "@sentry/node": "^9.29.0",
+    "@zapo-js/media-utils": "1.0.0",
+    "@zapo-js/store-redis": "1.3.0",
     "amqplib": "^0.10.9",
     "audio-decode": "^2.2.3",
     "audio2textjs": "^1.0.5",
     "awesome-phonenumber": "^6.8.0",
     "baileys": "npm:@clairton/whaileys@6.4.15",
     "express": "^4.19.2",
+    "file-type": "21.0.0",
+    "https-proxy-agent": "7.0.6",
     "i18n": "^0.15.1",
+    "ioredis": "5.8.2",
     "jimp": "^0.22.12",
     "jschardet": "^3.1.2",
     "link-preview-js": "^3.0.5",
@@ -107,10 +115,13 @@
     "uuid": "^9.0.1",
     "vcf": "^2.1.2",
     "voice-calls-baileys": "^1.0.5",
+    "ws": "8.20.1",
     "xlsx": "^0.18.5",
-    "yaml": "^2.7.0"
+    "yaml": "^2.7.0",
+    "zapo-js": "1.9.0"
   },
   "engines": {
     "node": ">= 24.x"
-  }
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

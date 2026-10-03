@@ -21,6 +21,18 @@ import { LogoutBaileys } from './services/logout_baileys'
 import * as Sentry from '@sentry/node'
 import { BASE_URL, PORT } from './defaults'
 import { SyncDummy } from './services/sync_dummy'
+import { getClientZapo } from './services/client_zapo'
+import { IncomingZapo } from './services/incoming_zapo'
+import { ListenerZapo } from './services/listener_zapo'
+import { ReloadZapo } from './services/reload_zapo'
+import { LogoutZapo } from './services/logout_zapo'
+import {
+  IncomingWhatsApp,
+  ListenerWhatsApp,
+  LogoutWhatsApp,
+  ReloadWhatsApp,
+  getClientWhatsApp,
+} from './services/whatsapp_provider'
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({
@@ -31,16 +43,25 @@ if (process.env.SENTRY_DSN) {
 
 const outgoingCloudApi: Outgoing = new OutgoingCloudApi(getConfigByEnv, isInBlacklistInMemory, addToBlacklistRedis)
 const broadcast: Broadcast = new Broadcast()
-const listenerBaileys: Listener = new ListenerBaileys(outgoingCloudApi, broadcast, getConfigByEnv, new SyncDummy())
-const onNewLoginn = onNewLoginAlert(listenerBaileys)
-const incomingBaileys: Incoming = new IncomingBaileys(listenerBaileys, getConfigByEnv, getClientBaileys, onNewLoginn)
+const syncDummy = new SyncDummy()
+const listenerBaileys: Listener = new ListenerBaileys(outgoingCloudApi, broadcast, getConfigByEnv, syncDummy)
+const listenerZapo: Listener = new ListenerZapo(outgoingCloudApi, broadcast, getConfigByEnv, syncDummy)
+const listener: Listener = new ListenerWhatsApp(listenerBaileys, listenerZapo, getConfigByEnv)
+const onNewLoginn = onNewLoginAlert(listener)
+const incomingBaileys: Incoming = new IncomingBaileys(listener, getConfigByEnv, getClientBaileys, onNewLoginn)
+const incomingZapo: Incoming = new IncomingZapo(listener, getConfigByEnv, getClientZapo, onNewLoginn)
+const incoming: Incoming = new IncomingWhatsApp(incomingBaileys, incomingZapo, getConfigByEnv)
 const sessionStore: SessionStore = new SessionStoreFile()
 
-const reload = new ReloadBaileys(getClientBaileys, getConfigByEnv, listenerBaileys, onNewLoginn)
-const logout = new LogoutBaileys(getClientBaileys, getConfigByEnv, listenerBaileys, onNewLoginn)
+const reloadBaileys = new ReloadBaileys(getClientBaileys, getConfigByEnv, listener, onNewLoginn)
+const reloadZapo = new ReloadZapo(getClientZapo, getConfigByEnv, listener, onNewLoginn)
+const reload = new ReloadWhatsApp(reloadBaileys, reloadZapo, getConfigByEnv)
+const logoutBaileys = new LogoutBaileys(getClientBaileys, getConfigByEnv, listener, onNewLoginn)
+const logoutZapo = new LogoutZapo(getClientZapo, getConfigByEnv, listener, onNewLoginn)
+const logout = new LogoutWhatsApp(logoutBaileys, logoutZapo, getConfigByEnv)
 
 const app: App = new App(
-  incomingBaileys,
+  incoming,
   outgoingCloudApi,
   BASE_URL,
   getConfigByEnv,
@@ -54,7 +75,7 @@ broadcast.setSever(app.socket)
 
 app.server.listen(PORT, '0.0.0.0', async () => {
   logger.info('Unoapi Cloud version: %s, listening on port: %s', version, PORT)
-  autoConnect(sessionStore, listenerBaileys, getConfigByEnv, getClientBaileys, onNewLoginn)
+  autoConnect(sessionStore, listener, getConfigByEnv, getClientWhatsApp, onNewLoginn)
 })
 
 export default app

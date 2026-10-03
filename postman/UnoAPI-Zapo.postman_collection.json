@@ -1,0 +1,148 @@
+{
+  "info": {
+    "_postman_id": "1e75d92e-b204-4b91-a841-unoapi-zapo",
+    "name": "UnoAPI Zapo",
+    "description": "Regressão da UnoAPI 2.11.7 usando Zapo. O QR Code é exibido em {{base_url}}/connect/{{phone}} e validado automaticamente pelo teste Jest zapo_qrcode.ts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "{{auth_header}}", "type": "string" },
+      { "key": "value", "value": "{{auth_token}}", "type": "string" },
+      { "key": "in", "value": "header", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Resposta sem erro interno', function () {",
+          "  pm.expect(pm.response.code).to.be.below(500);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Infraestrutura",
+      "item": [
+        {
+          "name": "Ping",
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{base_url}}/ping" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('UnoAPI online', () => pm.expect(pm.response.text()).to.include('pong'));"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "Listar sessões",
+          "request": { "method": "GET", "url": "{{base_url}}/sessions" }
+        }
+      ]
+    },
+    {
+      "name": "02 - Sessão Zapo",
+      "item": [
+        {
+          "name": "Registrar configuração Zapo",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"zapo\",\n  \"connectionType\": \"qrcode\",\n  \"autoConnect\": true\n}"
+            },
+            "url": "{{base_url}}/{{api_version}}/{{phone}}/register"
+          }
+        },
+        {
+          "name": "Abrir página do QR Code",
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{base_url}}/connect/{{phone}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Página do QR carregada', () => { pm.response.to.have.status(200); pm.expect(pm.response.text()).to.include('broadcast'); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "Consultar sessão",
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{base_url}}/sessions/{{phone}}" }
+        },
+        {
+          "name": "Solicitar código de pareamento",
+          "request": { "method": "POST", "url": "{{base_url}}/{{phone}}/request_code" }
+        },
+        {
+          "name": "Recarregar sessão",
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{base_url}}/connect/{{phone}}" }
+        },
+        {
+          "name": "Encerrar e remover sessão",
+          "request": { "method": "POST", "url": "{{base_url}}/{{api_version}}/{{phone}}/deregister" }
+        }
+      ]
+    },
+    {
+      "name": "03 - Mensagens",
+      "item": [
+        {
+          "name": "Enviar texto",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{to}}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"Teste UnoAPI + Zapo\" }\n}" },
+            "url": "{{base_url}}/{{api_version}}/{{phone}}/messages"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200) { const json = pm.response.json(); if (json.messages && json.messages[0]) pm.environment.set('message_id', json.messages[0].id); }"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "Enviar imagem",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{to}}\",\n  \"type\": \"image\",\n  \"image\": { \"link\": \"{{media_url}}\", \"caption\": \"Imagem de teste\" }\n}" },
+            "url": "{{base_url}}/{{api_version}}/{{phone}}/messages"
+          }
+        },
+        {
+          "name": "Reagir à mensagem",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{to}}\",\n  \"type\": \"reaction\",\n  \"reaction\": { \"message_id\": \"{{message_id}}\", \"emoji\": \"👍\" }\n}" },
+            "url": "{{base_url}}/{{api_version}}/{{phone}}/messages"
+          }
+        },
+        {
+          "name": "Marcar como lida",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"messaging_product\": \"whatsapp\",\n  \"status\": \"read\",\n  \"message_id\": \"{{message_id}}\"\n}" },
+            "url": "{{base_url}}/{{api_version}}/{{phone}}/messages"
+          }
+        },
+        {
+          "name": "Excluir mensagem",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"messaging_product\": \"whatsapp\",\n  \"status\": \"deleted\",\n  \"message_id\": \"{{message_id}}\"\n}" },
+            "url": "{{base_url}}/{{api_version}}/{{phone}}/messages"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Contatos",
+      "item": [
+        {
+          "name": "Validar contato",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"blocking\": \"wait\",\n  \"contacts\": [\"{{to}}\"],\n  \"force_check\": true\n}" },
+            "url": "{{base_url}}/{{phone}}/contacts"
+          }
+        }
+      ]
+    }
+  ]
+}

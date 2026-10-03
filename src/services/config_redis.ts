@@ -5,6 +5,7 @@ import { getStoreFile } from './store_file'
 import logger from './logger'
 import { getConfigByEnv } from './config_by_env'
 import { MessageFilter } from './message_filter'
+import { WHATSAPP_PROVIDER } from '../defaults'
 
 export const getConfigRedis: getConfig = async (phone: string): Promise<Config> => {
   if (!configs.has(phone)) {
@@ -44,7 +45,7 @@ export const getConfigRedis: getConfig = async (phone: string): Promise<Config> 
     }
 
     config.server = config.server || 'server_1'
-    config.provider = config.provider || 'baileys'
+    config.provider = config.provider || (WHATSAPP_PROVIDER as Config['provider'])
 
     const filter: MessageFilter = new MessageFilter(phone, config)
     config.shouldIgnoreJid = filter.isIgnoreJid.bind(filter)

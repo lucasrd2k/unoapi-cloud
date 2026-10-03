@@ -18,6 +18,10 @@ import { ReloadBaileys } from './services/reload_baileys'
 import { LogoutBaileys } from './services/logout_baileys'
 import { ReloadJob } from './jobs/reload'
 import { LogoutJob } from './jobs/logout'
+import { getClientZapo } from './services/client_zapo'
+import { ReloadZapo } from './services/reload_zapo'
+import { LogoutZapo } from './services/logout_zapo'
+import { LogoutWhatsApp, ReloadWhatsApp, getClientWhatsApp } from './services/whatsapp_provider'
 import { 
   UNOAPI_QUEUE_BIND,
   UNOAPI_QUEUE_RELOAD,
@@ -31,9 +35,13 @@ const outgoingAmqp: Outgoing = new OutgoingAmqp(getConfigLocal)
 const listenerAmqp: Listener = new ListenerAmqp()
 const onNewLogin = onNewLoginGenerateToken(outgoingAmqp)
 const bindJob = new BindBridgeJob()
-const reload = new ReloadBaileys(getClientBaileys, getConfigLocal, listenerAmqp, onNewLogin)
+const reloadBaileys = new ReloadBaileys(getClientBaileys, getConfigLocal, listenerAmqp, onNewLogin)
+const reloadZapo = new ReloadZapo(getClientZapo, getConfigLocal, listenerAmqp, onNewLogin)
+const reload = new ReloadWhatsApp(reloadBaileys, reloadZapo, getConfigLocal)
 const reloadJob = new ReloadJob(reload)
-const logout = new LogoutBaileys(getClientBaileys, getConfigLocal, listenerAmqp, onNewLogin)
+const logoutBaileys = new LogoutBaileys(getClientBaileys, getConfigLocal, listenerAmqp, onNewLogin)
+const logoutZapo = new LogoutZapo(getClientZapo, getConfigLocal, listenerAmqp, onNewLogin)
+const logout = new LogoutWhatsApp(logoutBaileys, logoutZapo, getConfigLocal)
 const logoutJob = new LogoutJob(logout)
 
 import * as Sentry from '@sentry/node'
@@ -71,7 +79,7 @@ const startBrigde = async () => {
 
   logger.info('Unoapi Cloud version %s started brige!', version)
 
-  await autoConnect(sessionStore, listenerAmqp, getConfigRedis, getClientBaileys, onNewLogin)
+  await autoConnect(sessionStore, listenerAmqp, getConfigRedis, getClientWhatsApp, onNewLogin)
 }
 startBrigde()
 

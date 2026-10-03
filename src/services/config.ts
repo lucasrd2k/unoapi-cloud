@@ -17,6 +17,7 @@ import { Level } from 'pino'
 export const configs: Map<string, Config> = new Map()
 
 export type connectionType = 'qrcode' | 'pairing_code' | 'forward'
+export type WhatsAppProvider = 'baileys' | 'zapo' | 'forwarder'
 
 export interface GetMessageMetadata {
   <T>(message: T): Promise<T>
@@ -86,7 +87,7 @@ export type Config = {
   sendProfilePicture: boolean
   authToken: string | undefined
   authHeader: string | undefined
-  provider: 'baileys' | 'forwarder' | undefined
+  provider: WhatsAppProvider | undefined
   server: string | undefined
   connectionType: connectionType
   wavoipToken: string | undefined

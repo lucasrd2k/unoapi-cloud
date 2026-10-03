@@ -8,7 +8,7 @@ WORKDIR /app
 
 ADD ./package.json ./package.json
 ADD ./yarn.lock ./yarn.lock
-RUN yarn
+RUN yarn install --frozen-lockfile --network-timeout 600000 --network-concurrency 4
 
 ADD ./src ./src
 ADD ./public ./public
@@ -38,10 +38,12 @@ COPY --from=builder /app/data ./data
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/yarn.lock ./yarn.lock
+COPY --from=builder /usr/local/share/.cache/yarn /usr/local/share/.cache/yarn
 
 
 RUN apk --update --no-cache add git ffmpeg
-RUN yarn
+RUN yarn install --production=true --offline --frozen-lockfile
+RUN rm -rf /usr/local/share/.cache/yarn
 RUN apk del git
 
 ENTRYPOINT yarn start

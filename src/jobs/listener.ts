@@ -4,17 +4,19 @@ import { Listener } from '../services/listener'
 import logger from '../services/logger'
 import { Outgoing } from '../services/outgoing'
 import { isDecryptError, isOutgoingMessage } from '../services/transformer'
-import { getConfig } from '../services/config'
+import { getConfig, WhatsAppProvider } from '../services/config'
 
 export class ListenerJob {
   private listener: Listener
   private outgoing: Outgoing
   private getConfig: getConfig
+  private provider: WhatsAppProvider
 
-  constructor(listener: Listener, outgoing: Outgoing, getConfig: getConfig) {
+  constructor(listener: Listener, outgoing: Outgoing, getConfig: getConfig, provider: WhatsAppProvider = 'baileys') {
     this.listener = listener
     this.outgoing = outgoing
     this.getConfig = getConfig
+    this.provider = provider
   }
 
   async consume(phone: string, data: object, options?: { countRetries: number; maxRetries: number; priority: 0 }) {
@@ -23,8 +25,8 @@ export class ListenerJob {
       logger.info(`Ignore listener routing key ${phone} server ${config.server} is not server current server ${UNOAPI_SERVER_NAME}...`)
       return
     }
-    if (config.provider !== 'baileys') {
-      logger.info(`Ignore listener routing key ${phone} is not provider baileys...`)
+    if (config.provider !== this.provider) {
+      logger.info('Ignorando listener da sessão %s: provedor atual %s, consumidor %s.', phone, config.provider, this.provider)
       return
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -62,6 +62,7 @@ import {
   OPENAI_API_SPEECH_VOICE,
   OPENAI_API_SPEECH_MODEL,
   OPENAI_API_BASE_URL,
+  WHATSAPP_PROVIDER,
 } from '../defaults'
 import { logLevel } from './logger'
 
@@ -91,6 +92,7 @@ export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> 
     config.notifyFailedMessages = NOTIFY_FAILED_MESSAGES
     config.retryRequestDelayMs = UNOAPI_RETRY_REQUEST_DELAY_MS
     config.connectionType = CONNECTION_TYPE as connectionType
+    config.provider = WHATSAPP_PROVIDER as Config['provider']
     config.sendReactionAsReply = SEND_REACTION_AS_REPLY
     config.sendProfilePicture = SEND_PROFILE_PICTURE
     config.sessionWebhook = WEBHOOK_SESSION

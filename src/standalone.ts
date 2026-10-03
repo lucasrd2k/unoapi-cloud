@@ -70,6 +70,20 @@ import {
   UNOAPI_SERVER_NAME,
 } from './defaults'
 import { SyncDummy } from './services/sync_dummy'
+import { getClientZapo } from './services/client_zapo'
+import { IncomingZapo } from './services/incoming_zapo'
+import { ListenerZapo } from './services/listener_zapo'
+import ContactZapo from './services/contact_zapo'
+import { ReloadZapo } from './services/reload_zapo'
+import { LogoutZapo } from './services/logout_zapo'
+import {
+  ContactWhatsApp,
+  IncomingWhatsApp,
+  ListenerWhatsApp,
+  LogoutWhatsApp,
+  ReloadWhatsApp,
+  getClientWhatsApp,
+} from './services/whatsapp_provider'
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({
@@ -85,11 +99,11 @@ let isInBlacklistVar: isInBlacklist = isInBlacklistInMemory
 let outgoing: Outgoing = new OutgoingCloudApi(getConfigByEnv, isInBlacklistVar, addToBlacklistVar)
 let getConfigVar: getConfig = getConfigByEnv
 let sessionStore: SessionStore = new SessionStoreFile()
-let listener: Listener = new ListenerBaileys(outgoing, broadcast, getConfigVar, new SyncDummy())
-let onNewLoginn: OnNewLogin = onNewLoginAlert(listener)
-let incoming: Incoming = new IncomingBaileys(listener, getConfigVar, getClientBaileys, onNewLoginn)
-let reload: Reload = new ReloadBaileys(getClientBaileys, getConfigVar, listener, onNewLoginn)
-let logout: Logout = new LogoutBaileys(getClientBaileys, getConfigVar, listener, onNewLoginn)
+let listener: Listener
+let onNewLoginn: OnNewLogin
+let incoming!: Incoming
+let reload!: Reload
+let logout!: Logout
 let middlewareVar: middleware = middlewareNext
 if (process.env.REDIS_URL) {
   logger.info('Starting with redis')
@@ -157,6 +171,10 @@ if (process.env.AMQP_URL) {
   amqpConsume(UNOAPI_EXCHANGE_BROKER_NAME, UNOAPI_QUEUE_BLACKLIST_ADD, '*', atbl, { notifyFailedMessages, prefetch, type: 'topic' })
 } else {
   logger.info('Starting standard mode')
+  const syncDummy = new SyncDummy()
+  const listenerBaileys = new ListenerBaileys(outgoing, broadcast, getConfigVar, syncDummy)
+  const listenerZapo = new ListenerZapo(outgoing, broadcast, getConfigVar, syncDummy)
+  listener = new ListenerWhatsApp(listenerBaileys, listenerZapo, getConfigVar)
 }
 
 if (process.env.UNOAPI_AUTH_TOKEN) {
@@ -166,9 +184,24 @@ if (process.env.UNOAPI_AUTH_TOKEN) {
   middlewareVar = securityVar.run.bind(securityVar) as middleware
 } else {
   logger.info('Starting without http security')
+  onNewLoginn = onNewLoginAlert(listener)
 }
 
-const contact: Contact = new ContactBaileys(listener, getConfigVar, getClientBaileys, onNewLoginn)
+if (!process.env.AMQP_URL) {
+  const incomingBaileys = new IncomingBaileys(listener, getConfigVar, getClientBaileys, onNewLoginn)
+  const incomingZapo = new IncomingZapo(listener, getConfigVar, getClientZapo, onNewLoginn)
+  incoming = new IncomingWhatsApp(incomingBaileys, incomingZapo, getConfigVar)
+  const reloadBaileys = new ReloadBaileys(getClientBaileys, getConfigVar, listener, onNewLoginn)
+  const reloadZapo = new ReloadZapo(getClientZapo, getConfigVar, listener, onNewLoginn)
+  reload = new ReloadWhatsApp(reloadBaileys, reloadZapo, getConfigVar)
+  const logoutBaileys = new LogoutBaileys(getClientBaileys, getConfigVar, listener, onNewLoginn)
+  const logoutZapo = new LogoutZapo(getClientZapo, getConfigVar, listener, onNewLoginn)
+  logout = new LogoutWhatsApp(logoutBaileys, logoutZapo, getConfigVar)
+}
+
+const contactBaileys: Contact = new ContactBaileys(listener, getConfigVar, getClientBaileys, onNewLoginn)
+const contactZapo: Contact = new ContactZapo(listener, getConfigVar, getClientZapo, onNewLoginn)
+const contact: Contact = new ContactWhatsApp(contactBaileys, contactZapo, getConfigVar)
 
 const app: App = new App(
   incoming,
@@ -188,7 +221,7 @@ broadcast.setSever(app.socket)
 
 app.server.listen(PORT, '0.0.0.0', async () => {
   logger.info('Unoapi standalone mode up version: %s, listening on port: %s', version, PORT)
-  autoConnect(sessionStore, listener, getConfigVar, getClientBaileys, onNewLoginn)
+  autoConnect(sessionStore, listener, getConfigVar, getClientWhatsApp, onNewLoginn)
 })
 
 process.on('uncaughtException', (reason: any) => {

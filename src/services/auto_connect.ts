@@ -20,7 +20,7 @@ export const autoConnect = async (
       const phone = phones[i]
       try {
         const config = await getConfig(phone)
-        if (config.provider && !['forwarder', 'baileys'].includes(config.provider)) {
+        if (config.provider && !['forwarder', 'baileys', 'zapo'].includes(config.provider)) {
           logger.info(`Ignore connecting phone ${phone} provider ${config.provider}...`)
           continue
         }

@@ -19,6 +19,10 @@ import { addToBlacklistRedis, isInBlacklistInRedis } from '../services/blacklist
 import { ListenerAmqp } from '../services/listener_amqp'
 import { OutgoingCloudApi } from '../services/outgoing_cloud_api'
 import { IncomingBaileys } from '../services/incoming_baileys'
+import { getClientZapo } from '../services/client_zapo'
+import { IncomingZapo } from '../services/incoming_zapo'
+import { SyncZapo } from '../services/sync_zapo'
+import { ListenerZapo } from '../services/listener_zapo'
 
 const getConfigLocal: getConfig = getConfigRedis
 const outgoingAmqp: Outgoing = new OutgoingAmqp(getConfigLocal)
@@ -30,14 +34,19 @@ const incomingBaileys = new IncomingBaileys(listenerAmqp, getConfigLocal, getCli
 const syncBaileys: Sync = new SyncBaileys(listenerAmqp, getConfigLocal, getClientBaileys, onNewLogin)
 const incomingJob = new IncomingJob(incomingBaileys, outgoingAmqp, getConfigLocal, UNOAPI_QUEUE_COMMANDER)
 const listenerBaileys: Listener = new ListenerBaileys(outgoingAmqp, broadcastAmqp, getConfigLocal, syncBaileys)
-const listenerJob = new ListenerJob(listenerBaileys, outgoingCloudApi, getConfigLocal)
+const listenerJobBaileys = new ListenerJob(listenerBaileys, outgoingCloudApi, getConfigLocal, 'baileys')
+const incomingZapo = new IncomingZapo(listenerAmqp, getConfigLocal, getClientZapo, onNewLogin)
+const syncZapo: Sync = new SyncZapo(listenerAmqp, getConfigLocal, getClientZapo, onNewLogin)
+const incomingJobZapo = new IncomingJob(incomingZapo, outgoingAmqp, getConfigLocal, UNOAPI_QUEUE_COMMANDER)
+const listenerZapo: Listener = new ListenerZapo(outgoingAmqp, broadcastAmqp, getConfigLocal, syncZapo)
+const listenerJobZapo = new ListenerJob(listenerZapo, outgoingCloudApi, getConfigLocal, 'zapo')
 
 const processeds = new Map<string, boolean>()
 
 export class BindBridgeJob {
   async consume(server: string, { routingKey }: { routingKey: string }) {
     const config = await getConfigLocal(routingKey)
-    if (config.provider && !['forwarder', 'baileys'].includes(config.provider!)) {
+    if (config.provider && !['forwarder', 'baileys', 'zapo'].includes(config.provider!)) {
       logger.info(`Ignore connecting routingKey ${routingKey} provider ${config.provider}...`)
       return
     }
@@ -54,8 +63,10 @@ export class BindBridgeJob {
     logger.info('Binding queues consumer bridge server %s routingKey %s', server, routingKey)
 
     const notifyFailedMessages = config.notifyFailedMessages
+    const listenerJob = config.provider === 'zapo' ? listenerJobZapo : listenerJobBaileys
+    const selectedIncomingJob = config.provider === 'zapo' ? incomingJobZapo : incomingJob
 
-    logger.info('Starting listener baileys consumer %s', routingKey)
+    logger.info('Iniciando consumidor listener %s para %s.', config.provider, routingKey)
     await amqpConsume(
       UNOAPI_EXCHANGE_BRIDGE_NAME,
       `${UNOAPI_QUEUE_LISTENER}.${UNOAPI_SERVER_NAME}`,
@@ -69,12 +80,12 @@ export class BindBridgeJob {
       },
     )
 
-    logger.info('Starting incoming consumer %s', routingKey)
+    logger.info('Iniciando consumidor incoming %s para %s.', config.provider, routingKey)
     await amqpConsume(
       UNOAPI_EXCHANGE_BRIDGE_NAME,
       `${UNOAPI_QUEUE_INCOMING}.${UNOAPI_SERVER_NAME}`,
       routingKey,
-      incomingJob.consume.bind(incomingJob),
+      selectedIncomingJob.consume.bind(selectedIncomingJob),
       {
         notifyFailedMessages,
         priority: 5,

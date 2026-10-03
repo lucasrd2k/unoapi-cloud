@@ -39,6 +39,11 @@ import {
 import { SyncBaileys } from './services/sync_baileys'
 import { Sync } from './services/sync'
 import { ListenerAmqp } from './services/listener_amqp'
+import { getClientZapo } from './services/client_zapo'
+import ContactZapo from './services/contact_zapo'
+import { ListenerZapo } from './services/listener_zapo'
+import { SyncZapo } from './services/sync_zapo'
+import { ContactWhatsApp, ListenerWhatsApp, SyncWhatsApp } from './services/whatsapp_provider'
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({
@@ -64,8 +69,14 @@ console.log('process.env.UNOAPI_MODE', process.env.UNOAPI_MODE)
 if (process.env.UNOAPI_MODE == 'cloud') {
   const listenerAmqp: Listener = new ListenerAmqp()
   const syncBaileys: Sync = new SyncBaileys(listenerAmqp, getConfigRedis, getClientBaileys, onNewLogin)
-  const listener: Listener = new ListenerBaileys(outgoing, broadcast, getConfigRedis, syncBaileys)
-  contactType = new ContactBaileys(listener, getConfigRedis, getClientBaileys, onNewLogin)
+  const syncZapo: Sync = new SyncZapo(listenerAmqp, getConfigRedis, getClientZapo, onNewLogin)
+  const sync: Sync = new SyncWhatsApp(syncBaileys, syncZapo, getConfigRedis)
+  const listenerBaileys: Listener = new ListenerBaileys(outgoing, broadcast, getConfigRedis, sync)
+  const listenerZapo: Listener = new ListenerZapo(outgoing, broadcast, getConfigRedis, sync)
+  const listener: Listener = new ListenerWhatsApp(listenerBaileys, listenerZapo, getConfigRedis)
+  const contactBaileys: Contact = new ContactBaileys(listener, getConfigRedis, getClientBaileys, onNewLogin)
+  const contactZapo: Contact = new ContactZapo(listener, getConfigRedis, getClientZapo, onNewLogin)
+  contactType = new ContactWhatsApp(contactBaileys, contactZapo, getConfigRedis)
 } else {
   contactType = new ContactDummy()
 }

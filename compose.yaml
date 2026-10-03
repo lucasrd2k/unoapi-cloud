@@ -1,0 +1,120 @@
+services:
+  web:
+    image: 'unoapi-zapo:2.11.7-zapo'
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    entrypoint: 'yarn web'
+    ports:
+      - '9876:9876'
+    container_name: web-kwo08ow40w88g4o4o8s0ogck
+    labels:
+      - coolify.managed=true
+      - coolify.version=4.0.0-beta.462
+      - coolify.serviceId=2
+      - coolify.type=service
+      - coolify.name=web-kwo08ow40w88g4o4o8s0ogck
+      - coolify.resourceName=service-co0wgc4ws4ss0ww8kgkoccwg
+      - coolify.projectName=unoapi
+      - coolify.serviceName=web
+      - coolify.environmentName=production
+      - coolify.pullRequestId=0
+      - coolify.service.subId=2
+      - coolify.service.subType=application
+      - coolify.service.subName=web
+      - traefik.enable=true
+      - traefik.http.middlewares.gzip.compress=true
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.routers.http-0-kwo08ow40w88g4o4o8s0ogck-web.entryPoints=http
+      - traefik.http.routers.http-0-kwo08ow40w88g4o4o8s0ogck-web.middlewares=redirect-to-https
+      - 'traefik.http.routers.http-0-kwo08ow40w88g4o4o8s0ogck-web.rule=Host(`wp5.papoai.com.br`) && PathPrefix(`/`)'
+      - traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.entryPoints=https
+      - traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.middlewares=gzip
+      - 'traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.rule=Host(`wp5.papoai.com.br`) && PathPrefix(`/`)'
+      - traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.tls.certresolver=letsencrypt
+      - traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.tls=true
+    networks:
+      kwo08ow40w88g4o4o8s0ogck: null
+    environment:
+      COOLIFY_RESOURCE_UUID: kwo08ow40w88g4o4o8s0ogck
+      COOLIFY_CONTAINER_NAME: web-kwo08ow40w88g4o4o8s0ogck
+      COOLIFY_FQDN: wp5.papoai.com.br
+      COOLIFY_URL: 'https://wp5.papoai.com.br'
+      SERVICE_NAME_WEB: web
+      SERVICE_NAME_BROKER: broker
+      SERVICE_NAME_BRIDGE_1: bridge-1
+      WHATSAPP_PROVIDER: '${WHATSAPP_PROVIDER:-zapo}'
+    env_file:
+      - .env
+  broker:
+    image: 'unoapi-zapo:2.11.7-zapo'
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    entrypoint: 'yarn broker'
+    container_name: broker-kwo08ow40w88g4o4o8s0ogck
+    labels:
+      - coolify.managed=true
+      - coolify.version=4.0.0-beta.462
+      - coolify.serviceId=2
+      - coolify.type=service
+      - coolify.name=broker-kwo08ow40w88g4o4o8s0ogck
+      - coolify.resourceName=service-co0wgc4ws4ss0ww8kgkoccwg
+      - coolify.projectName=unoapi
+      - coolify.serviceName=broker
+      - coolify.environmentName=production
+      - coolify.pullRequestId=0
+      - coolify.service.subId=3
+      - coolify.service.subType=application
+      - coolify.service.subName=broker
+    networks:
+      kwo08ow40w88g4o4o8s0ogck: null
+    environment:
+      COOLIFY_RESOURCE_UUID: kwo08ow40w88g4o4o8s0ogck
+      COOLIFY_CONTAINER_NAME: broker-kwo08ow40w88g4o4o8s0ogck
+      SERVICE_NAME_WEB: web
+      SERVICE_NAME_BROKER: broker
+      SERVICE_NAME_BRIDGE_1: bridge-1
+      WHATSAPP_PROVIDER: '${WHATSAPP_PROVIDER:-zapo}'
+    env_file:
+      - .env
+  bridge-1:
+    image: 'unoapi-zapo:2.11.7-zapo'
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    entrypoint: 'yarn bridge'
+    environment:
+      UNOAPI_SERVER_NAME: server_1
+      COOLIFY_RESOURCE_UUID: kwo08ow40w88g4o4o8s0ogck
+      COOLIFY_CONTAINER_NAME: bridge-1-kwo08ow40w88g4o4o8s0ogck
+      SERVICE_NAME_WEB: web
+      SERVICE_NAME_BROKER: broker
+      SERVICE_NAME_BRIDGE_1: bridge-1
+      WHATSAPP_PROVIDER: '${WHATSAPP_PROVIDER:-zapo}'
+    container_name: bridge-1-kwo08ow40w88g4o4o8s0ogck
+    labels:
+      - coolify.managed=true
+      - coolify.version=4.0.0-beta.462
+      - coolify.serviceId=2
+      - coolify.type=service
+      - coolify.name=bridge-1-kwo08ow40w88g4o4o8s0ogck
+      - coolify.resourceName=service-co0wgc4ws4ss0ww8kgkoccwg
+      - coolify.projectName=unoapi
+      - coolify.serviceName=bridge-1
+      - coolify.environmentName=production
+      - coolify.pullRequestId=0
+      - coolify.service.subId=4
+      - coolify.service.subType=application
+      - coolify.service.subName=bridge-1
+    networks:
+      kwo08ow40w88g4o4o8s0ogck: null
+    env_file:
+      - .env
+networks:
+  kwo08ow40w88g4o4o8s0ogck:
+    name: kwo08ow40w88g4o4o8s0ogck
+    external: true

@@ -5,6 +5,8 @@ import logger from '../services/logger'
 import { Store } from '../services/store'
 import QRCode from 'qrcode'
 import { OnDisconnected, OnNewLogin, OnNotification, OnQrCode, OnReconnect, connect } from '../services/socket'
+import { createSocketZapo } from '../services/socket_zapo'
+import { resolveWhatsAppProvider } from '../services/whatsapp_provider'
 
 const configuration = async (phone: string, getConfig: getConfig) => {
   const config = await getConfig(phone)
@@ -64,19 +66,35 @@ const qrcode = async (phone: string, getConfig: getConfig, onNewLogin: OnNewLogi
   const onReconnect: OnReconnect = async () => {}
   const config = await getConfig(phone)
   const store: Store = await config.getStore(phone, config)
-  await connect({
-    phone,
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    store: store!,
-    attempts: 3,
-    time: 0,
-    onQrCode,
-    onNotification,
-    onNewLogin: onNewLoginLocal,
-    config,
-    onDisconnected,
-    onReconnect,
-  })
+  if (resolveWhatsAppProvider(config) === 'zapo') {
+    const zapo = createSocketZapo({
+      phone,
+      store,
+      attempts: 3,
+      time: 0,
+      onQrCode,
+      onNotification,
+      onNewLogin: onNewLoginLocal,
+      config,
+      onDisconnected,
+      onReconnect,
+    })
+    await zapo.start()
+  } else {
+    await connect({
+      phone,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      store: store!,
+      attempts: 3,
+      time: 0,
+      onQrCode,
+      onNotification,
+      onNewLogin: onNewLoginLocal,
+      config,
+      onDisconnected,
+      onReconnect,
+    })
+  }
 
   return `<!DOCTYPE html>
     <script src="/socket.io.min.js"></script>

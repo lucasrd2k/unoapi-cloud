@@ -11,6 +11,7 @@ import logger from './logger'
 import { DATA_URL_TTL, FETCH_TIMEOUT_MS } from '../defaults'
 import fetch, { Response as FetchResponse } from 'node-fetch'
 import mediaToBuffer from '../utils/media_to_buffer'
+import { downloadMediaMessage as downloadZapoMediaMessage } from 'zapo-js'
 
 export const MEDIA_DIR = '/medias'
 
@@ -89,7 +90,15 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
       binMessage.message.mediaKey = Uint8Array.from(Object.values(binMessage?.message?.mediaKey))
     }
 
-    if (url.indexOf('base64') >= 0) {
+    if (waMessage['_provider'] === 'zapo') {
+      const source = waMessage['_zapoEvent'] || waMessage.message
+      const media = await downloadZapoMediaMessage(source)
+      const chunks: Buffer[] = []
+      for await (const chunk of media) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+      }
+      buffer = Buffer.concat(chunks)
+    } else if (url?.indexOf('base64') >= 0) {
       const parts = url.split(',')
       const base64 = parts[1]
       buffer = Buffer.from(base64, 'base64')
