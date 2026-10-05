@@ -1,5 +1,5 @@
 import { UNOAPI_SERVER_NAME } from '../defaults'
-import { getClient } from './client'
+import { clients, getClient } from './client'
 import { getConfig } from './config'
 import { Listener } from './listener'
 import { OnNewLogin } from './socket'
@@ -21,18 +21,10 @@ export class ReloadZapo extends Reload {
     if (config.server !== UNOAPI_SERVER_NAME) {
       return super.run(phone)
     }
-    const currentClient = await this.getClient({
-      phone,
-      listener: this.listener,
-      getConfig: this.getConfig,
-      onNewLogin: this.onNewLogin,
-    })
+    const currentClient = clients.get(phone)
     const { sessionStore } = await config.getStore(phone, config)
-    if (
-      (await sessionStore.isStatusOnline(phone)) ||
-      (await sessionStore.isStatusStandBy(phone)) ||
-      (await sessionStore.isStatusConnecting(phone))
-    ) {
+    if (currentClient) {
+      logger.debug('Desconectando o cliente Zapo atual antes de recarregar a sessão %s.', phone)
       await currentClient?.disconnect()
     }
     await super.run(phone)

@@ -10,19 +10,8 @@ import { Listener } from './listener'
 import { Store } from './store'
 import { createSocketZapo, type ZapoSocket } from './socket_zapo'
 import { OnNewLogin, OnNotification, OnQrCode, OnReconnect } from './socket'
-import {
-  fromZapoAddon,
-  fromZapoIncomingMessage,
-  fromZapoReceipt,
-  toZapoMessageContent,
-} from './transformer_zapo'
-import {
-  getMessageType,
-  jidToPhoneNumber,
-  phoneNumberToJid,
-  TYPE_MESSAGES_MEDIA,
-  TYPE_MESSAGES_TO_READ,
-} from './transformer'
+import { fromZapoAddon, fromZapoIncomingMessage, fromZapoReceipt, toZapoMessageContent } from './transformer_zapo'
+import { getMessageType, jidToPhoneNumber, phoneNumberToJid, TYPE_MESSAGES_MEDIA, TYPE_MESSAGES_TO_READ } from './transformer'
 import { Response } from './response'
 import { Template } from './template'
 import { SendError } from './send_error'
@@ -49,11 +38,26 @@ type MessageWithMetadata = {
 
 const delays: Map<string, Map<string, MessageDelay>> = new Map()
 const sendError = new SendError(15, t('reloaded_session'))
+const creatingClients = new Map<string, Promise<Client>>()
 
 export const getClientZapo: getClient = async ({ phone, listener, getConfig, onNewLogin }) => {
-  if (!clients.has(phone)) {
+  const currentClient = clients.get(phone)
+  if (currentClient) {
+    return currentClient
+  }
+  const creatingClient = creatingClients.get(phone)
+  if (creatingClient) {
+    logger.debug('Aguardando a criação do cliente Zapo para %s.', phone)
+    return creatingClient
+  }
+
+  const createClient = async () => {
     logger.info('Criando cliente Zapo para %s.', phone)
     const config = await getConfig(phone)
+    const clientCreatedByAnotherRequest = clients.get(phone)
+    if (clientCreatedByAnotherRequest) {
+      return clientCreatedByAnotherRequest
+    }
     const client: Client =
       config.connectionType === 'forward' || config.provider === 'forwarder'
         ? new ClientForward(phone, getConfig, listener)
@@ -66,8 +70,18 @@ export const getClientZapo: getClient = async ({ phone, listener, getConfig, onN
     } else {
       clients.set(phone, client)
     }
+    return client
   }
-  return clients.get(phone) as Client
+
+  const promise = createClient()
+  creatingClients.set(phone, promise)
+  try {
+    return await promise
+  } finally {
+    if (creatingClients.get(phone) === promise) {
+      creatingClients.delete(phone)
+    }
+  }
 }
 
 export class ClientZapo implements Client {
@@ -197,6 +211,10 @@ export class ClientZapo implements Client {
   private continueAfterSecondMessage: MessageDelay = async (_phone, _to) => {}
 
   async connect(time: number) {
+    if (this.socket) {
+      logger.debug('Reutilizando o ciclo de conexão Zapo existente para %s.', this.phone)
+      return true
+    }
     logger.debug('Conectando o cliente Zapo para %s.', this.phone)
     this.config = await this.getConfig(this.phone)
     this.store = await this.config.getStore(this.phone, this.config)
@@ -217,6 +235,9 @@ export class ClientZapo implements Client {
     this.config.getMessageMetadata = async <T>(data: T) => this.getMessageMetadata(data)
     const started = await this.socket.start()
     if (!started) {
+      this.socket.client.removeAllListeners()
+      this.socket = undefined
+      this.store = undefined
       return
     }
     logger.debug('Cliente Zapo iniciado para %s.', this.phone)
@@ -241,30 +262,38 @@ export class ClientZapo implements Client {
 
   private subscribe() {
     const socket = this.socket!
-    socket.client.on('message', async (event) => {
-      const message = fromZapoIncomingMessage(event)
-      await this.listener.process(this.phone, [message], event.offline ? 'history' : 'notify')
-      const messageType = getMessageType(message)
-      if (this.config.readOnReceipt && !event.key.fromMe && messageType && TYPE_MESSAGES_TO_READ.includes(messageType)) {
-        await socket.read([event.key])
-      }
+    socket.client.on('message', (event) => {
+      void (async () => {
+        const message = fromZapoIncomingMessage(event)
+        await this.listener.process(this.phone, [message], event.offline ? 'history' : 'notify')
+        const messageType = getMessageType(message)
+        if (this.config.readOnReceipt && !event.key.fromMe && messageType && TYPE_MESSAGES_TO_READ.includes(messageType)) {
+          await socket.read([event.key])
+        }
+      })().catch((error) => logger.error(error, 'Falha ao processar uma mensagem Zapo da sessão %s.', this.phone))
     })
 
-    socket.client.on('receipt', async (event) => {
-      const updates = fromZapoReceipt(event)
-      if (updates.length) {
-        await this.listener.process(this.phone, updates, 'update')
-      }
+    socket.client.on('receipt', (event) => {
+      void (async () => {
+        const updates = fromZapoReceipt(event)
+        if (updates.length) {
+          await this.listener.process(this.phone, updates, 'update')
+        }
+      })().catch((error) => logger.error(error, 'Falha ao processar uma confirmação Zapo da sessão %s.', this.phone))
     })
 
-    socket.client.on('message_addon', async (event) => {
-      const message = fromZapoAddon(event)
-      if (message) {
-        await this.listener.process(this.phone, [message], 'notify')
-      }
+    socket.client.on('message_addon', (event) => {
+      void (async () => {
+        const message = fromZapoAddon(event)
+        if (message) {
+          await this.listener.process(this.phone, [message], 'notify')
+        }
+      })().catch((error) => logger.error(error, 'Falha ao processar um complemento de mensagem Zapo da sessão %s.', this.phone))
     })
 
-    socket.client.on('call', async (event) => this.processCall(event))
+    socket.client.on('call', (event) => {
+      void this.processCall(event).catch((error) => logger.error(error, 'Falha ao processar uma chamada Zapo da sessão %s.', this.phone))
+    })
   }
 
   private async processCall(event: WaIncomingCallEvent) {

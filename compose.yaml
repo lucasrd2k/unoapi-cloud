@@ -1,6 +1,6 @@
 services:
   web:
-    image: 'unoapi-zapo:2.11.7-zapo'
+    image: 'unoapi-zapo:2.12.0-zapo'
     build:
       context: .
       dockerfile: Dockerfile
@@ -48,7 +48,7 @@ services:
     env_file:
       - .env
   broker:
-    image: 'unoapi-zapo:2.11.7-zapo'
+    image: 'unoapi-zapo:2.12.0-zapo'
     build:
       context: .
       dockerfile: Dockerfile
@@ -81,7 +81,7 @@ services:
     env_file:
       - .env
   bridge-1:
-    image: 'unoapi-zapo:2.11.7-zapo'
+    image: 'unoapi-zapo:2.12.0-zapo'
     build:
       context: .
       dockerfile: Dockerfile

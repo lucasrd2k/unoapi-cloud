@@ -550,11 +550,14 @@
                 if (data.content.toLowerCase().indexOf('connected with')  !== -1) {
                     qrcodeDiv.innerHTML = '';
                     statusDiv.textContent = `Conectado!`;
-                } else if (data.content.toLowerCase().indexOf('generate qrcode is exceded')  !== -1) {
+                } else if (
+                    data.content.toLowerCase().indexOf('generate qrcode is exceded') !== -1 ||
+                    (data.content.toLowerCase().indexOf('limite') !== -1 && data.content.toLowerCase().indexOf('qrcode') !== -1)
+                ) {
                     console.log("QRCODE EXCEDIDO")
                     qrcodeDiv.innerHTML = '';
                     statusDiv.textContent = 'Gerando novo QrCode/PairingCode...';
-                    attemptRegister(phoneNumber, localStorage.getItem(tokenKey));
+                    attemptRegister(currentPhoneNumber, localStorage.getItem(tokenKey));
                 } else {
                     qrcodeDiv.innerHTML = ''
                     statusDiv.textContent = `Status: ${data.content}`;
@@ -996,7 +999,7 @@
                         return response.json();
                     })
                     .then(data => {
-                        if (data.status === 'offline' || data.status === 'disconnected') {
+                        if (data.status === 'offline' || data.status === 'disconnected' || data.status === 'standby') {
                             attemptRegister(number, token);
                         } else if (data.status === 'connecting') {
                             connectToWebSocket(number, data.qrTimeoutMs);

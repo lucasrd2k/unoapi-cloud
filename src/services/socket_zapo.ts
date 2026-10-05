@@ -34,6 +34,23 @@ import {
 
 const mediaProcessor = createMediaProcessor()
 
+type ZapoLifecycleClient = Pick<WaClient, 'disconnect' | 'getCredentials' | 'logout'>
+
+export const logoutOrDisconnectZapo = async (client: ZapoLifecycleClient) => {
+  if (!client.getCredentials()?.meJid) {
+    await client.disconnect()
+    return 'disconnect' as const
+  }
+  try {
+    await client.logout()
+    return 'logout' as const
+  } catch (error) {
+    logger.warn(error, 'O logout Zapo falhou; encerrando a conexão local com segurança.')
+    await client.disconnect()
+    return 'disconnect' as const
+  }
+}
+
 export type ZapoSendOptions = WaSendMessageOptions & {
   composing?: boolean
   broadcast?: boolean
@@ -156,7 +173,7 @@ export const createSocketZapo = ({
     closingByUnoapi = true
     clearConnectingTimeout()
     try {
-      await client.logout()
+      await logoutOrDisconnectZapo(client)
     } finally {
       await dataStore.cleanSession(CLEAN_CONFIG_ON_DISCONNECT)
       await sessionStore.setStatus(phone, 'disconnected')
@@ -210,7 +227,7 @@ export const createSocketZapo = ({
     await reconnect()
   }
 
-  client.on('auth_qr', async ({ qr }) => {
+  const handleQrCode = async (qr: string) => {
     if (config.connectionType !== 'qrcode') {
       return
     }
@@ -221,9 +238,13 @@ export const createSocketZapo = ({
       return
     }
     await onQrCode(qr, status.attempt++, attempts)
+  }
+
+  client.on('auth_qr', ({ qr }) => {
+    void handleQrCode(qr).catch((error) => logger.error(error, 'Falha ao processar o QR Code Zapo da sessão %s.', phone))
   })
 
-  client.on('auth_pairing_required', async () => {
+  const handlePairingRequired = async () => {
     if (config.connectionType !== 'pairing_code' || pairingCodeRequested) {
       return
     }
@@ -234,11 +255,15 @@ export const createSocketZapo = ({
     } catch (error) {
       pairingCodeRequested = false
       logger.error(error, 'Falha ao solicitar o código de pareamento pelo Zapo')
-      throw error
+      await onNotification(t('error', error instanceof Error ? error.message : String(error)), true)
     }
+  }
+
+  client.on('auth_pairing_required', () => {
+    void handlePairingRequired().catch((error) => logger.error(error, 'Falha ao tratar a solicitação de pareamento Zapo da sessão %s.', phone))
   })
 
-  client.on('connection', async (event) => {
+  const handleConnection = async (event: Parameters<WaClientEventMap['connection']>[0]) => {
     if (event.status === 'close') {
       await handleClose(event)
       return
@@ -262,6 +287,10 @@ export const createSocketZapo = ({
       t('connected', phone, credentials?.meJid || phone, config.whatsappVersion?.join('.') || 'auto', zapoVersion, new Date().toUTCString()),
       false,
     )
+  }
+
+  client.on('connection', (event) => {
+    void handleConnection(event).catch((error) => logger.error(error, 'Falha ao processar a conexão Zapo da sessão %s.', phone))
   })
 
   const exists = async (jid: string) => {
@@ -349,29 +378,36 @@ export const createSocketZapo = ({
     closingByUnoapi = false
     await sessionStore.setStatus(phone, 'connecting')
     await onNotification(t('connecting'), false)
-    connectingTimeout = setTimeout(async () => {
-      if (await sessionStore.isStatusConnecting(phone)) {
-        const message = t('connection_timed_out', phone, CONNECTING_TIMEOUT_MS)
-        await onNotification(message, false)
-        logger.warn(message)
-        await onDisconnected(phone, {})
-      }
-      await sessionStore.syncConnection(phone)
+    connectingTimeout = setTimeout(() => {
+      void (async () => {
+        if (await sessionStore.isStatusConnecting(phone)) {
+          const message = t('connection_timed_out', phone, CONNECTING_TIMEOUT_MS)
+          await onNotification(message, false)
+          logger.warn(message)
+          await onDisconnected(phone, {})
+        }
+        await sessionStore.syncConnection(phone)
+      })().catch((error) => logger.error(error, 'Falha ao tratar o tempo limite da sessão Zapo %s.', phone))
     }, CONNECTING_TIMEOUT_MS)
 
-    void client.connect().catch(async (error) => {
-      logger.error(error, 'Falha ao conectar a sessão Zapo %s', phone)
-      if (!closingByUnoapi) {
-        await sessionStore.setStatus(phone, 'offline')
-        await onNotification(t('error', error instanceof Error ? error.message : String(error)), true)
-        await reconnect()
-      }
-    })
+    void client
+      .connect()
+      .catch(async (error) => {
+        logger.error(error, 'Falha ao conectar a sessão Zapo %s', phone)
+        if (!closingByUnoapi) {
+          await sessionStore.setStatus(phone, 'offline')
+          await onNotification(t('error', error instanceof Error ? error.message : String(error)), true)
+          await reconnect()
+        }
+      })
+      .catch((error) => logger.error(error, 'Falha ao recuperar a conexão Zapo da sessão %s.', phone))
     return true
   }
 
   if (config.autoRestartMs) {
-    setInterval(reconnect, config.autoRestartMs)
+    setInterval(() => {
+      void reconnect().catch((error) => logger.error(error, 'Falha ao reiniciar automaticamente a sessão Zapo %s.', phone))
+    }, config.autoRestartMs)
   }
 
   return {
