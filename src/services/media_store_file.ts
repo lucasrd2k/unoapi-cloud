@@ -15,6 +15,69 @@ import { downloadMediaMessage as downloadZapoMediaMessage } from 'zapo-js'
 
 export const MEDIA_DIR = '/medias'
 
+const ZAPO_BINARY_MEDIA_FIELDS = ['mediaKey', 'fileSha256', 'fileEncSha256'] as const
+
+const deserializeZapoBytes = (value: unknown, field: string): Uint8Array => {
+  if (value instanceof Uint8Array) return value
+
+  let bytes: unknown[] | undefined
+  if (Array.isArray(value)) {
+    bytes = value
+  } else if (value && typeof value === 'object') {
+    const serialized = value as Record<string, unknown>
+    if (serialized.type === 'Buffer' && Array.isArray(serialized.data)) {
+      bytes = serialized.data
+    } else {
+      bytes = Object.entries(serialized)
+        .filter(([key]) => /^\d+$/.test(key))
+        .sort(([left], [right]) => Number(left) - Number(right))
+        .map(([, byte]) => byte)
+    }
+  }
+
+  if (!bytes?.length || bytes.some((byte) => !Number.isInteger(byte) || Number(byte) < 0 || Number(byte) > 255)) {
+    throw new Error(`O campo ${field} da mídia Zapo possui um formato binário inválido.`)
+  }
+  return Uint8Array.from(bytes as number[])
+}
+
+const deserializeZapoLong = (value: unknown, field: string): number => {
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return value
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    const parsed = Number(value)
+    if (Number.isSafeInteger(parsed)) return parsed
+  }
+  if (value && typeof value === 'object') {
+    const serialized = value as { low?: unknown; high?: unknown; unsigned?: unknown; toNumber?: () => number }
+    if (typeof serialized.toNumber === 'function') {
+      const parsed = serialized.toNumber()
+      if (Number.isSafeInteger(parsed)) return parsed
+    }
+    if (Number.isInteger(serialized.low) && Number.isInteger(serialized.high)) {
+      const low = BigInt(Number(serialized.low) >>> 0)
+      const high = BigInt(Number(serialized.high) >>> 0)
+      let parsed = (high << 32n) | low
+      if (!serialized.unsigned && (Number(serialized.high) & 0x80000000) !== 0) {
+        parsed -= 1n << 64n
+      }
+      if (parsed >= BigInt(Number.MIN_SAFE_INTEGER) && parsed <= BigInt(Number.MAX_SAFE_INTEGER)) return Number(parsed)
+    }
+  }
+  throw new Error(`O campo ${field} da mídia Zapo possui um formato numérico inválido.`)
+}
+
+export const rehydrateZapoMediaFields = (fields: Record<string, unknown>) => {
+  for (const field of ZAPO_BINARY_MEDIA_FIELDS) {
+    if (fields[field] !== undefined && fields[field] !== null) {
+      fields[field] = deserializeZapoBytes(fields[field], field)
+    }
+  }
+  if (fields.fileLength !== undefined && fields.fileLength !== null) {
+    fields.fileLength = deserializeZapoLong(fields.fileLength, 'fileLength')
+  }
+  return fields
+}
+
 export const getMediaStoreFile: getMediaStore = (phone: string, config: Config, getDataStore: getDataStore): MediaStore => {
   if (!mediaStores.has(phone)) {
     logger.debug('Creating media store file %s', phone)
@@ -86,7 +149,9 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
     const binMessage = getBinMessage(waMessage)
     const url = binMessage?.message?.url
 
-    if (typeof binMessage?.message?.mediaKey === 'object') {
+    if (waMessage['_provider'] === 'zapo' && binMessage?.message) {
+      rehydrateZapoMediaFields(binMessage.message)
+    } else if (typeof binMessage?.message?.mediaKey === 'object') {
       binMessage.message.mediaKey = Uint8Array.from(Object.values(binMessage?.message?.mediaKey))
     }
 
