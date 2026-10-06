@@ -35,12 +35,15 @@ export const mediaStoreS3 = (phone: string, config: Config, getDataStore: getDat
   const mediaStore = mediaStoreFile(phone, config, getDataStore)
   mediaStore.type = 's3'
 
+  const resolveContentType = (fileName: string) => mime.lookup(fileName) || 'application/octet-stream'
+
   mediaStore.saveMediaBuffer = async (fileName: string, content: Buffer) => {
     logger.debug(`Uploading file ${fileName} to bucket ${bucket}....`)
     const putParams = {
       Bucket: bucket,
       Key: fileName,
       Body: content,
+      ContentType: resolveContentType(fileName),
     }
     const abortSignal = AbortSignal.timeout(s3Config.timeoutMs)
     await s3Client.send(new PutObjectCommand(putParams), { abortSignal })
@@ -58,11 +61,7 @@ export const mediaStoreS3 = (phone: string, config: Config, getDataStore: getDat
       // const fileNameSplit = fileName.split('/')
       // const name = fileNameSplit[fileNameSplit.length - 1]
       // getParams['ResponseContentDisposition'] = `inline; filename="${name}"`
-      let mimetype = mime.lookup(fileName)
-      if (mimetype == 'audio/ogg') {
-        mimetype = 'audio/ogg; codecs=opus'
-      } 
-      getParams['ResponseContentType'] = mimetype
+      getParams['ResponseContentType'] = resolveContentType(fileName)
     } catch (e) {
       logger.error(e, 'error on set params ResponseContentDisposition and ResponseContentType')
     }
