@@ -28,10 +28,10 @@ services:
       - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
       - traefik.http.routers.http-0-kwo08ow40w88g4o4o8s0ogck-web.entryPoints=http
       - traefik.http.routers.http-0-kwo08ow40w88g4o4o8s0ogck-web.middlewares=redirect-to-https
-      - 'traefik.http.routers.http-0-kwo08ow40w88g4o4o8s0ogck-web.rule=Host(`wp5.papoai.com.br`) && PathPrefix(`/`)'
+      - 'traefik.http.routers.http-0-kwo08ow40w88g4o4o8s0ogck-web.rule=Host(`wpz1.papoai.com.br`) && PathPrefix(`/`)'
       - traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.entryPoints=https
       - traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.middlewares=gzip
-      - 'traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.rule=Host(`wp5.papoai.com.br`) && PathPrefix(`/`)'
+      - 'traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.rule=Host(`wpz1.papoai.com.br`) && PathPrefix(`/`)'
       - traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.tls.certresolver=letsencrypt
       - traefik.http.routers.https-0-kwo08ow40w88g4o4o8s0ogck-web.tls=true
     networks:
@@ -39,11 +39,12 @@ services:
     environment:
       COOLIFY_RESOURCE_UUID: kwo08ow40w88g4o4o8s0ogck
       COOLIFY_CONTAINER_NAME: web-kwo08ow40w88g4o4o8s0ogck
-      COOLIFY_FQDN: wp5.papoai.com.br
-      COOLIFY_URL: 'https://wp5.papoai.com.br'
+      COOLIFY_FQDN: wpz1.papoai.com.br
+      COOLIFY_URL: 'https://wpz1.papoai.com.br'
       SERVICE_NAME_WEB: web
       SERVICE_NAME_BROKER: broker
       SERVICE_NAME_BRIDGE_1: bridge-1
+      UNOAPI_SERVER_NAME: wpz1
       WHATSAPP_PROVIDER: '${WHATSAPP_PROVIDER:-zapo}'
     env_file:
       - .env
@@ -77,6 +78,7 @@ services:
       SERVICE_NAME_WEB: web
       SERVICE_NAME_BROKER: broker
       SERVICE_NAME_BRIDGE_1: bridge-1
+      UNOAPI_SERVER_NAME: wpz1
       WHATSAPP_PROVIDER: '${WHATSAPP_PROVIDER:-zapo}'
     env_file:
       - .env
@@ -88,7 +90,7 @@ services:
     restart: always
     entrypoint: 'yarn bridge'
     environment:
-      UNOAPI_SERVER_NAME: server_1
+      UNOAPI_SERVER_NAME: wpz1
       COOLIFY_RESOURCE_UUID: kwo08ow40w88g4o4o8s0ogck
       COOLIFY_CONTAINER_NAME: bridge-1-kwo08ow40w88g4o4o8s0ogck
       SERVICE_NAME_WEB: web

@@ -22,7 +22,7 @@ describe('encerramento de sessão Zapo', () => {
 
     await expect(logoutOrDisconnectZapo(client)).resolves.toBe('logout')
     expect(client.logout).toHaveBeenCalledTimes(1)
-    expect(client.disconnect).not.toHaveBeenCalled()
+    expect(client.disconnect).toHaveBeenCalledTimes(1)
   })
 
   test('desconecta localmente quando o logout remoto falha', async () => {

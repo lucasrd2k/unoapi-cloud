@@ -552,7 +552,18 @@ export const getChatAndNumberAndId = (payload: any): [string, string, string] =>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getNumberAndId = (payload: any): [string, string] => {
   const {
-    key: { remoteJid, senderPn, recipientPn, participantPn, participant, senderLid, participantLid, recipientLid },
+    key: {
+      remoteJid,
+      remoteJidAlt,
+      senderPn,
+      recipientPn,
+      participantPn,
+      participant,
+      participantAlt,
+      senderLid,
+      participantLid,
+      recipientLid,
+    },
     participant: participant2,
     participantPn: participantPn2,
   } = payload
@@ -560,8 +571,19 @@ export const getNumberAndId = (payload: any): [string, string] => {
   const lid = senderLid || participantLid || recipientLid || participant || participant2 || remoteJid
   const split = lid.split('@')
   const id = `${split[0].split(':')[0]}@${split[1]}`
-  const pn = participantPn || senderPn || participantPn2 || participant || participant2 || recipientPn
-  const phone = pn ? jidToPhoneNumber(pn, '') : id
+  const isPhoneJid = (value: unknown): value is string =>
+    typeof value === 'string' && value.endsWith('@s.whatsapp.net')
+  const alternatePhoneJid = [participantAlt, remoteJidAlt].find(isPhoneJid)
+  const participantPhoneJid = [participant, participant2].find(isPhoneJid)
+  const pn = participantPn || senderPn || participantPn2 || recipientPn || participantPhoneJid || alternatePhoneJid
+  // remoteJidAlt/participantAlt já são a identidade PN confirmada pelo WhatsApp.
+  // Não aplicamos heurísticas de inclusão do nono dígito nesses campos: o valor
+  // precisa chegar ao webhook exatamente como foi informado pelo Zapo.
+  const phone = pn
+    ? pn === alternatePhoneJid
+      ? pn.split('@')[0].split(':')[0].replace('+', '')
+      : jidToPhoneNumber(pn, '')
+    : id
   return [phone, id]
 }
 

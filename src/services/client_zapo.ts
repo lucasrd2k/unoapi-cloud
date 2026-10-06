@@ -9,6 +9,7 @@ import { Config, configs, defaultConfig, getConfig, getMessageMetadataDefault } 
 import { Listener } from './listener'
 import { Store } from './store'
 import { createSocketZapo, type ZapoSocket } from './socket_zapo'
+import { waitForZapoSessionCleanup } from './store_zapo'
 import { OnNewLogin, OnNotification, OnQrCode, OnReconnect } from './socket'
 import { fromZapoAddon, fromZapoIncomingMessage, fromZapoReceipt, toZapoMessageContent } from './transformer_zapo'
 import { getMessageType, jidToPhoneNumber, phoneNumberToJid, TYPE_MESSAGES_MEDIA, TYPE_MESSAGES_TO_READ } from './transformer'
@@ -41,6 +42,7 @@ const sendError = new SendError(15, t('reloaded_session'))
 const creatingClients = new Map<string, Promise<Client>>()
 
 export const getClientZapo: getClient = async ({ phone, listener, getConfig, onNewLogin }) => {
+  await waitForZapoSessionCleanup(phone)
   const currentClient = clients.get(phone)
   if (currentClient) {
     return currentClient
@@ -140,6 +142,7 @@ export class ClientZapo implements Client {
         remoteJid: phoneNumberToJid(this.phone),
         id: generateUnoId('NOT'),
       },
+      messageTimestamp: Math.floor(Date.now() / 1000),
       message: { conversation: text },
     }
     if (this.config.sessionWebhook) {
@@ -168,6 +171,7 @@ export class ClientZapo implements Client {
         remoteJid: phoneNumberToJid(this.phone),
         id: generateUnoId('QR'),
       },
+      messageTimestamp: Math.floor(Date.now() / 1000),
       message: {
         imageMessage: {
           url: qrCodeUrl,

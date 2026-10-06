@@ -16,7 +16,7 @@ import { version as zapoVersion } from 'zapo-js/package.json'
 import type { Config } from './config'
 import type { Store } from './store'
 import type { OnDisconnected, OnNewLogin, OnNotification, OnQrCode, OnReconnect, Status } from './socket'
-import { getStoreZapo } from './store_zapo'
+import { clearZapoSessionState, ensureZapoSignalState, getStoreZapo, runZapoSessionCleanup } from './store_zapo'
 import { zapoLogger } from './logger_zapo'
 import logger from './logger'
 import { isIndividualJid, jidToPhoneNumber, phoneNumberToJid } from './transformer'
@@ -36,6 +36,24 @@ const mediaProcessor = createMediaProcessor()
 
 type ZapoLifecycleClient = Pick<WaClient, 'disconnect' | 'getCredentials' | 'logout'>
 
+const UNOAPI_MANAGED_LOGOUT_STORE_CLEAR = {
+  auth: false,
+  signal: false,
+  preKey: false,
+  session: false,
+  identity: false,
+  senderKey: false,
+  appState: false,
+  retry: false,
+  groupMetadata: false,
+  deviceList: false,
+  messages: false,
+  messageSecret: false,
+  threads: false,
+  contacts: false,
+  privacyToken: false,
+} as const
+
 export const logoutOrDisconnectZapo = async (client: ZapoLifecycleClient) => {
   if (!client.getCredentials()?.meJid) {
     await client.disconnect()
@@ -43,6 +61,7 @@ export const logoutOrDisconnectZapo = async (client: ZapoLifecycleClient) => {
   }
   try {
     await client.logout()
+    await client.disconnect()
     return 'logout' as const
   } catch (error) {
     logger.warn(error, 'O logout Zapo falhou; encerrando a conexão local com segurança.')
@@ -108,9 +127,11 @@ export const createSocketZapo = ({
 }): ZapoSocket => {
   const { dataStore, sessionStore } = store
   const status: Status = { attempt: time }
+  const zapoStore = getStoreZapo()
+  const zapoSession = zapoStore.session(phone)
   const client = new WaClient(
     {
-      store: getStoreZapo(),
+      store: zapoStore,
       sessionId: phone,
       deviceBrowser: CONFIG_SESSION_PHONE_NAME.toLowerCase(),
       deviceOsDisplayName: CONFIG_SESSION_PHONE_CLIENT,
@@ -123,6 +144,7 @@ export const createSocketZapo = ({
       media: { processor: mediaProcessor },
       messageRetryDelayMs: config.retryRequestDelayMs,
       markOnlineOnConnect: true,
+      logoutStoreClear: UNOAPI_MANAGED_LOGOUT_STORE_CLEAR,
     },
     zapoLogger.child({ phone }),
   )
@@ -175,8 +197,14 @@ export const createSocketZapo = ({
     try {
       await logoutOrDisconnectZapo(client)
     } finally {
-      await dataStore.cleanSession(CLEAN_CONFIG_ON_DISCONNECT)
-      await sessionStore.setStatus(phone, 'disconnected')
+      await runZapoSessionCleanup(phone, async () => {
+        try {
+          await clearZapoSessionState(zapoSession)
+        } finally {
+          await dataStore.cleanSession(CLEAN_CONFIG_ON_DISCONNECT)
+          await sessionStore.setStatus(phone, 'disconnected')
+        }
+      })
     }
   }
 
@@ -210,10 +238,16 @@ export const createSocketZapo = ({
     }
     if (event.isLogout) {
       status.attempt = 1
-      await sessionStore.setStatus(phone, 'disconnected')
-      await dataStore.cleanSession(CLEAN_CONFIG_ON_DISCONNECT)
-      await onNotification(t('removed'), true)
-      await onDisconnected(phone, event)
+      await runZapoSessionCleanup(phone, async () => {
+        try {
+          await clearZapoSessionState(zapoSession)
+        } finally {
+          await sessionStore.setStatus(phone, 'disconnected')
+          await dataStore.cleanSession(CLEAN_CONFIG_ON_DISCONNECT)
+          await onNotification(t('removed'), true)
+          await onDisconnected(phone, event)
+        }
+      })
       return
     }
     if (event.reason === 'stream_error_replaced') {
@@ -277,6 +311,19 @@ export const createSocketZapo = ({
       const message = t('session_conflict', connectedPhone, phone)
       await onNotification(message, true)
       await logout()
+      return
+    }
+    const signalStateRestored = await ensureZapoSignalState(zapoSession, client)
+    if (signalStateRestored) {
+      logger.warn('O estado Signal da sessão Zapo %s foi restaurado; reconectando antes de liberar a sessão.', phone)
+      await sessionStore.setStatus(phone, 'connecting')
+      closingByUnoapi = true
+      try {
+        await client.disconnect()
+      } finally {
+        closingByUnoapi = false
+      }
+      await client.connect()
       return
     }
     await sessionStore.setStatus(phone, 'online')
@@ -361,7 +408,6 @@ export const createSocketZapo = ({
   }
 
   const start = async () => {
-    await sessionStore.syncConnection(phone)
     if (await sessionStore.isStatusConnecting(phone)) {
       logger.warn('A sessão Zapo %s já está conectando.', phone)
       return false
@@ -384,9 +430,9 @@ export const createSocketZapo = ({
           const message = t('connection_timed_out', phone, CONNECTING_TIMEOUT_MS)
           await onNotification(message, false)
           logger.warn(message)
-          await onDisconnected(phone, {})
+          await sessionStore.setStatus(phone, 'offline')
+          await reconnect()
         }
-        await sessionStore.syncConnection(phone)
       })().catch((error) => logger.error(error, 'Falha ao tratar o tempo limite da sessão Zapo %s.', phone))
     }, CONNECTING_TIMEOUT_MS)
 

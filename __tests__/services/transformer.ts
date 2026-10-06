@@ -22,6 +22,7 @@ import {
   extractFromPhone,
   extractTypeMessage,
 } from '../../src/services/transformer'
+import { t } from '../../src/i18n'
 const key = { remoteJid: 'XXXX@s.whatsapp.net', id: 'abc' }
 
 const documentMessage: proto.Message.IDocumentMessage = {
@@ -230,6 +231,25 @@ describe('service transformer', () => {
     expect(a[2]).toBe(remoteJid)
   })
 
+  test('usa o número PN exato do remoteJidAlt quando a conversa chega por LID', async () => {
+    const remoteJid = '67770725199928@lid'
+    const remoteJidAlt = '556298604216@s.whatsapp.net'
+    const result = getChatAndNumberAndId({ key: { remoteJid, remoteJidAlt } })
+
+    expect(result[0]).toBe(remoteJid)
+    expect(result[1]).toBe('556298604216')
+    expect(result[2]).toBe(remoteJid)
+  })
+
+  test('mantém o LID quando o Zapo não informa um número PN alternativo', async () => {
+    const remoteJid = '148790803726375@lid'
+    const result = getChatAndNumberAndId({ key: { remoteJid } })
+
+    expect(result[0]).toBe(remoteJid)
+    expect(result[1]).toBe(remoteJid)
+    expect(result[2]).toBe(remoteJid)
+  })
+
   test('getChatAndNumberAndId with participant and and with group', async () => {
     const participantPn = '554988290955'
     const remoteJid = '24788516941@g.us'
@@ -250,6 +270,17 @@ describe('service transformer', () => {
     expect(a[0]).toBe(remoteJid)
     expect(a[1]).toBe('5549988290955')
     expect(a[2]).toBe(participantLid)
+  })
+
+  test('usa o número PN exato do participantAlt para participante LID de grupo', async () => {
+    const remoteJid = '120363000000000000@g.us'
+    const participant = '67770725199928@lid'
+    const participantAlt = '556281997185@s.whatsapp.net'
+    const result = getChatAndNumberAndId({ key: { remoteJid, participant, participantAlt } })
+
+    expect(result[0]).toBe(remoteJid)
+    expect(result[1]).toBe('556281997185')
+    expect(result[2]).toBe(participant)
   })
 
   test('getChatAndNumberAndId with senderLid and without group', async () => {
@@ -1565,7 +1596,7 @@ describe('service transformer', () => {
       messageStubType: 2,
       messageStubParameters: ['Invalid PreKey ID'],
     }
-    const body = '🕒 The message could not be read. Please ask to send it again or open WhatsApp on your phone.'
+    const body = t('failed_decrypt')
     const output = {
       object: 'whatsapp_business_account',
       entry: [
@@ -1576,7 +1607,7 @@ describe('service transformer', () => {
               value: {
                 messaging_product: 'whatsapp',
                 metadata: { display_phone_number: phoneNumer, phone_number_id: phoneNumer },
-                contacts: [{ profile: { name: pushName }, wa_id: remotePhoneNumber.replace('+', '') }],
+                contacts: [{ profile: { name: pushName, picture: undefined }, wa_id: remotePhoneNumber.replace('+', '') }],
                 statuses: [],
                 messages: [
                   {

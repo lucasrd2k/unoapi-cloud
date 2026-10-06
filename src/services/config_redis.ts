@@ -44,6 +44,9 @@ export const getConfigRedis: getConfig = async (phone: string): Promise<Config> 
       })
     }
 
+    // Configurações antigas, criadas antes da separação por servidor, pertencem
+    // ao servidor legado. O servidor atual só deve assumir uma sessão quando o
+    // cadastro persistir explicitamente seu nome.
     config.server = config.server || 'server_1'
     config.provider = config.provider || (WHATSAPP_PROVIDER as Config['provider'])
 

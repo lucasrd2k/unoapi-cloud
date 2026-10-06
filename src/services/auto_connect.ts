@@ -28,7 +28,12 @@ export const autoConnect = async (
           logger.info(`Ignore connecting phone ${phone} server ${config.server} is not server current server ${UNOAPI_SERVER_NAME}...`)
           continue
         }
-        await sessionStore.syncConnection(phone)
+        // O syncConnection legado valida as chaves de autenticação do Baileys.
+        // O Zapo mantém as credenciais em outro namespace; executar essa rotina
+        // nele transforma incorretamente uma sessão válida em "disconnected".
+        if (config.provider !== 'zapo') {
+          await sessionStore.syncConnection(phone)
+        }
         if (await sessionStore.isStatusStandBy(phone)) {
           logger.info(`Session standby ${phone}...`)
           continue

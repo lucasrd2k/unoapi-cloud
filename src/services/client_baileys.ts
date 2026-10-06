@@ -168,6 +168,7 @@ export class ClientBaileys implements Client {
       }
       const payload = {
         key: waMessageKey,
+        messageTimestamp: Math.floor(Date.now() / 1000),
         message: {
           conversation: text,
         },
@@ -207,6 +208,7 @@ export class ClientBaileys implements Client {
     const message = t('qrcode_attemps', time, limit)
     const waMessage: WAMessage = {
       key: waMessageKey,
+      messageTimestamp: Math.floor(Date.now() / 1000),
       message: {
         imageMessage: {
           url: qrCodeUrl,
